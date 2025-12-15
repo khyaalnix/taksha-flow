@@ -5,3 +5,6 @@ google-api-python-client==2.184.0
 google-auth-oauthlib==1.2.2
 google-cloud-storage==3.6.0
 nest-asyncio
+fastapi
+fastapi-limiter
+uvicorn
