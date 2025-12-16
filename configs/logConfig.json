@@ -1,0 +1,75 @@
+{
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+        "json": {
+            "()": "app.utils.logger.JSONFormatter",
+            "fmt_keys": {
+                "level": "levelname",
+                "message": "message",
+                "timestamp": "created",
+                "logger": "name",
+                "function": "funcName",
+                "line": "lineno",
+                "module": "module"
+            }
+        },
+        "simple": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S"
+        }
+    },
+    "filters": {
+        "non_error": {
+            "()": "app.utils.logger.NonErrorFilter"
+        }
+    },
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "json",
+            "stream": "ext://sys.stdout"
+        },
+        "stderr": {
+            "class": "logging.StreamHandler",
+            "level": "WARNING",
+            "formatter": "json",
+            "stream": "ext://sys.stderr"
+        },
+        "file_error": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "json",
+            "filename": "error.log",
+            "maxBytes": 10485760,
+            "backupCount": 3,
+            "encoding": "utf-8"
+        }
+    },
+    "loggers": {
+        "": {
+            "level": "INFO",
+            "handlers": [
+                "stdout",
+                "file_error"
+            ],
+            "propagate": false
+        },
+        "app": {
+            "level": "INFO",
+            "handlers": [
+                "stdout",
+                "file_error"
+            ],
+            "propagate": false
+        },
+        "app.warning": {
+            "level": "WARNING",
+            "handlers": [
+                "stdout"
+            ],
+            "propagate": false
+        }
+    }
+}

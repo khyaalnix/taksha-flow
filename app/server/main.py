@@ -8,7 +8,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_limiter import FastAPILimiter
 
 from app import app_state
+from app.utils.logger import LoggerFactory
 from app.connectors.connectors import get_mongo_client, get_redis_client
+
+logger = LoggerFactory.get_logger()
 
 async def ratelimit_callback(
     request: Request, response: Response, pexpire: int
@@ -31,14 +34,14 @@ async def lifespan(app_: FastAPI):
         )
         app_.state.app_state = app_state
 
-        print("Flow App Initialized 🚀")
+        logger.info("Flow App Initialized 🚀")
         yield
     except Exception as e:
-        print("Flow App Initialization Failed ❌")
+        logger.error("Flow App Initialization Failed ❌")
         raise e
     finally: 
         await app_state.resources["redis"].close()
-        print("Flow App Redis Connection Closed 🔌")
+        logger.info("Flow App Redis Connection Closed 🔌")  
 
 
 app = FastAPI(

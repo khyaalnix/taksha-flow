@@ -24,3 +24,17 @@
 
 
 """
+from fastapi import APIRouter, Depends
+
+from app import getAppState, AppState
+from app.schemas.interests import MasterInterestCreate, UpdatScore
+
+from app.utils.logger import LoggerFactory
+logger = LoggerFactory.get_logger()
+
+router = APIRouter(
+    prefix="/interests",
+    tags=["interests"],
+)
+
+

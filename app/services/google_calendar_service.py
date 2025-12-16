@@ -2,6 +2,10 @@ from googleapiclient.discovery import build
 from app.services.oauth import OAuthService
 from app.services.google_oauth import GoogleAuthBuilder, CALENDAR_SCOPES
 
+from app.utils.logger import LoggerFactory
+logger = LoggerFactory.get_logger()
+
+
 
 class GoogleCalendarService:
     """Service for managing Google Calendar API operations with multi-user support."""
@@ -22,7 +26,7 @@ class GoogleCalendarService:
             service = build('calendar', 'v3', credentials=credentials)
             return service
         except Exception as e:
-            print(f"Error building Calendar service for user {user_id}: {e}")
+            logger.error(f"Error building Calendar service for user {user_id}: {e}")
             raise
 
     async def cache_user_token(self, user_id: str, access_token: str, expires_in: str):
@@ -43,8 +47,8 @@ class GoogleCalendarService:
             service = await self.get_calendar_service(user_id)
             calendar_list = service.calendarList().list().execute()
             calendars = calendar_list.get('items', [])
-            print(f"OAuth working for user {user_id}! Found {len(calendars)} calendars.")
+            logger.info(f"OAuth working for user {user_id}! Found {len(calendars)} calendars.")
             return calendars
         except Exception as e:
-            print(f"OAuth test failed for user {user_id}: {e}")
+            logger.error(f"OAuth test failed for user {user_id}: {e}")
             raise

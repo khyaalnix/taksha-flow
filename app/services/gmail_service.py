@@ -2,6 +2,10 @@ from googleapiclient.discovery import build
 from app.services.oauth import OAuthService
 from app.services.google_oauth import GoogleAuthBuilder, GMAIL_SCOPES
 
+from app.utils.logger import LoggerFactory
+logger = LoggerFactory.get_logger()
+
+
 
 class GmailService:
     """Service for managing Gmail API operations with multi-user support."""
@@ -21,7 +25,7 @@ class GmailService:
             service = build('gmail', 'v1', credentials=credentials)
             return service
         except Exception as e:
-            print(f"Error building Gmail service for user {user_id}: {e}")
+            logger.error(f"Error building Gmail service for user {user_id}: {e}")
             raise
 
     async def cache_user_token(self, user_id: str, access_token: str, expires_in: str):
@@ -41,8 +45,8 @@ class GmailService:
         try:
             service = await self.get_gmail_service(user_id)
             profile = service.users().getProfile(userId='me').execute()
-            print(f"OAuth working for user {user_id}! Email: {profile.get('emailAddress')}")
+            logger.info(f"OAuth working for user {user_id}! Email: {profile.get('emailAddress')}")
             return profile
         except Exception as e:
-            print(f"OAuth test failed for user {user_id}: {e}")
+            logger.error(f"OAuth test failed for user {user_id}: {e}")
             raise

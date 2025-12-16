@@ -4,6 +4,9 @@ import json
 from redis.asyncio import RedisError
 
 from app.connectors.connectors import get_redis_client
+from app.utils.logger import LoggerFactory
+
+logger = LoggerFactory.get_logger()
 
 class RedisCache:
     def __init__(self):
@@ -23,7 +26,7 @@ class RedisCache:
             else:
                 return await self.redis.set(key, serialized_payload)
         except (RedisError, TypeError, ValueError) as e:
-            print(f"Error setting Redis key {key}: {e}")
+            logger.error(f"Error setting Redis key {key}: {e}")
             return False
 
     async def get(self, key: str):
@@ -37,21 +40,21 @@ class RedisCache:
             else:
                 return None
         except (RedisError, TypeError, ValueError) as e:
-            print(f"Error getting Redis key {key}: {e}")
+            logger.error(f"Error getting Redis key {key}: {e}")
             return None
 
     async def delete(self, key: str) -> bool:
         try:
             return await self.redis.delete(key)
         except (RedisError, TypeError, ValueError) as e:
-            print(f"Error deleting Redis key {key}: {e}")
+            logger.error(f"Error deleting Redis key {key}: {e}")
             return False
 
     async def exists(self, key):
         try:
             return await self.redis.exists(key) > 0
         except RedisError as e:
-            print(f"Error checking Redis key {key} existence: {e}")
+            logger.error(f"Error checking Redis key {key} existence: {e}")
             return False
     
 
@@ -82,7 +85,7 @@ class LockManager:
             )
             return token if ok else None
         except Exception:
-            print("Lock Acquisition issue in LockManager for key: ", key)
+            logger.error("Lock Acquisition issue in LockManager for key: ", self.prefix)
             return None
 
     async def release(self, token: str) -> bool:
@@ -100,6 +103,6 @@ class LockManager:
             await self.redis.eval(lua, 1, f"{self.lock_prefix}", token)
             return True
         except Exception:
-            print("Lock Release issue in LockManager for key", self.lock_prefix)
+            logger.error("Lock Release issue in LockManager for key", self.prefix)
             return False
 

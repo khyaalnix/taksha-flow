@@ -4,6 +4,8 @@ from google.auth.transport.requests import Request
 from google.auth.credentials import TokenState
 
 from app.services.oauth import OAuthService, AuthBuilder
+from app.utils.logger import LoggerFactory
+logger = LoggerFactory.get_logger()
 
 GMAIL_SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -26,7 +28,7 @@ class GoogleAuthBuilder(AuthBuilder):
             creds = Credentials.from_authorized_user_info(eval(token_json), scopes=scopes)
             return creds
         except Exception as e:
-            print(f"Error building credentials from token JSON: {e}")
+            logger.error(f"Error building credentials from token JSON: {e}")
             raise ValueError(f"Failed to build credentials from token JSON: {e}")
 
     def build_creds_from_access_token(self,access_token: str,expires_in: str,scopes: list[str]):
@@ -34,11 +36,11 @@ class GoogleAuthBuilder(AuthBuilder):
             # Use naive UTC to avoid naive/aware comparison issues inside google library
             expiry = datetime.utcfromtimestamp(int(expires_in)//1000)
             creds = Credentials(token=access_token, expiry=expiry,scopes=scopes)
-            print("Successfully built credentials from provided access token.")
+            logger.info("Successfully built credentials from provided access token.")
             return creds
 
         except Exception as e:
-            print(f"Error building credentials from access token: {e}")
+            logger.error(f"Error building credentials from access token: {e}")
             raise ValueError(f"Failed to build credentials from access token: {e}")
     
     def refresh_or_create(self,existing_token = None, scopes: list[str] = None):
@@ -46,17 +48,17 @@ class GoogleAuthBuilder(AuthBuilder):
             if existing_token and hasattr(existing_token, 'refresh_token') and existing_token.refresh_token:
                 if existing_token.token_state != TokenState.FRESH:
                     existing_token.refresh(Request())
-                    print("Token refreshed successfully")
+                    logger.info("Token refreshed successfully")
                     return existing_token
                 else:
                     return existing_token
 
             if existing_token:
                 if existing_token.valid:
-                    print("Existing token (without refresh_token) is still valid")
+                    logger.info("Existing token (without refresh_token) is still valid")
                     return existing_token
                 else:
-                    print("Existing token has expired and cannot be refreshed (no refresh_token)")
+                    logger.error("Existing token has expired and cannot be refreshed (no refresh_token)")
                     raise RuntimeError(
                         "Token has expired and cannot be refreshed. "
                         "No refresh_token available. Please provide new oauth-token and oauth-token-expiry."
@@ -64,13 +66,13 @@ class GoogleAuthBuilder(AuthBuilder):
 
             # No existing creds available: do not attempt local flows by default.
             # Require caller to provide fresh oauth-token via headers.
-            print("No existing credentials available to refresh or create.")
+            logger.error("No existing credentials available to refresh or create.")
             raise RuntimeError(
                 "No credentials available in cache. Please provide oauth-token and oauth-token-expiry headers."
             )
 
         except Exception as e:
-            print(f"Error in refresh_or_create: {e}")
+            logger.error(f"Error in refresh_or_create: {e}")
             raise RuntimeError(f"Failed to refresh or create credentials: {e}")
 
 
@@ -84,7 +86,7 @@ class GoogleAuthBuilder(AuthBuilder):
             return creds.token_state == TokenState.FRESH
             
         except Exception as e:
-            print(f"Error checking credential validity: {e}")
+            logger.error(f"Error checking credential validity: {e}")
             return False
 
     def ttl(self, creds, refresh_buffer_seconds: int = 1800) -> int:
@@ -100,12 +102,12 @@ class GoogleAuthBuilder(AuthBuilder):
             return max(60, ttl)
 
         except Exception as e:
-                print(f"Error computing TTL: {e}")
+                logger.error(f"Error computing TTL: {e}")
                 return 3600
         
     def to_json(self,credentials):
         try:
             return credentials.to_json()
         except Exception as e:
-            print(f"Unable to convert credentials/token to json: {str(e)}")
+            logger.error(f"Unable to convert credentials/token to json: {str(e)}")
             raise e

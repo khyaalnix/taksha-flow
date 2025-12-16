@@ -2,6 +2,10 @@ from abc import ABC, abstractmethod
 import asyncio
 
 from app.utils.redis import RedisCache, LockManager
+from app.utils.logger import LoggerFactory
+logger = LoggerFactory.get_logger()
+
+
 
 class AuthBuilder(ABC):
 
@@ -69,7 +73,7 @@ class OAuthService:
 
             return creds
         except Exception as e:
-            print(f"Error getting cached token for user {user_id}: {e}") # replace with logger
+            logger.error(f"Error getting cached token for user {user_id}: {e}")
             return None
 
     async def cache_user_token(self, user_id: str, access_token: str, expires_in: str):
@@ -81,10 +85,10 @@ class OAuthService:
             token_json = self.auth_builder.to_json(creds)
             ttl = self.auth_builder.ttl(creds, self.refresh_buffer_seconds)
             await self.store.set(self._token_key(user_id), token_json, ttl)
-            print(f"Token cached for user {user_id} with TTL: {ttl} seconds")
+            logger.info(f"Token cached for user {user_id} with TTL: {ttl} seconds")
             return True, None
         except Exception as e:
-            print(f"Error caching token for user {user_id}: {e}") # replace with logger
+            logger.error(f"Error caching token for user {user_id}: {e}")
             return False, str(e)
 
     async def get_credentials(self, user_id: str):
@@ -96,7 +100,7 @@ class OAuthService:
 
             return creds
         except Exception as e:
-            print(f"Error getting credentials for user {user_id}: {e}") # replace with logger
+            logger.error(f"Error getting credentials for user {user_id}: {e}")
             raise
     
     
@@ -118,7 +122,7 @@ class OAuthService:
                         if self.auth_builder.is_valid(creds):
                             return creds
                     except Exception as e:
-                        print(f"Error fetching existing token for user {user_id}: {e}") # replace with logger
+                        logger.error(f"Error fetching existing token for user {user_id}: {e}")
                         pass
 
                 # No active token found, let's refresh and cache it
@@ -127,7 +131,7 @@ class OAuthService:
                     try:
                         existing_creds = self.auth_builder.build_creds_from_token(token_json, self.scopes)
                     except Exception as e:
-                        print(f"Error fetching existing token for user {user_id}: {e}") # replace with logger
+                        logger.error(f"Error fetching existing token for user {user_id}: {e}")
                         pass
 
                 new_creds = self.auth_builder.refresh_or_create(existing_creds, self.scopes)
@@ -136,7 +140,7 @@ class OAuthService:
                 token_json = self.auth_builder.to_json(new_creds)
                 ttl = self.auth_builder.ttl(new_creds, self.refresh_buffer_seconds)
                 await self.store.set(token_key, token_json, ttl)
-                print(f"Refreshed token cached for user {user_id} with TTL: {ttl} seconds")
+                logger.info(f"Refreshed token cached for user {user_id} with TTL: {ttl} seconds")
                 return new_creds
             finally:
                 await lock_manager.release(lock_token)
@@ -144,7 +148,7 @@ class OAuthService:
         # If lock cannot be acquired, then another process is already refreshing it
         # wait for it to complete and check once again for validity
 
-        print(f"Waiting for lock to be released for user {user_id} until timeout")
+        logger.info(f"Waiting for lock to be released for user {user_id} until timeout")
         start = asyncio.get_event_loop().time()
         while (asyncio.get_event_loop().time() - start) < timeout:
             token_json = await self.store.get(token_key)
@@ -158,7 +162,7 @@ class OAuthService:
                     pass
             await asyncio.sleep(1)
 
-        print(f"Timeout reached for user {user_id}, no valid token found. Making final attempt to refresh token.")
+        logger.info(f"Timeout reached for user {user_id}, no valid token found. Making final attempt to refresh token.")
         # this step can be removed and can be replaced by client asking to login again to the user
 
         # final attempt:::
@@ -179,7 +183,7 @@ class OAuthService:
                 token_json = self.auth_builder.to_json(new_creds)
                 ttl = self.auth_builder.ttl(new_creds, self.refresh_buffer_seconds)
                 await self.store.set(token_key, token_json, ttl)
-                print(f"Refreshed token cached for user {user_id} with TTL: {ttl} seconds")
+                logger.info(f"Refreshed token cached for user {user_id} with TTL: {ttl} seconds")
                 return new_creds
             finally:
                 await lock_manager.release(lock_token)
@@ -195,7 +199,7 @@ class OAuthService:
                 if self.auth_builder.is_valid(creds):
                     return True
             except Exception as e:
-                print(f"Error checking token validity for user {user_id}: {e}")
+                logger.error(f"Error checking token validity for user {user_id}: {e}")
                 pass
         return False
 
@@ -204,11 +208,11 @@ class OAuthService:
         try:
             result = await self.store.delete(self._token_key(user_id))
             if result:
-                print(f"Cache invalidated successfully for user {user_id}.")
+                logger.info(f"Cache invalidated successfully for user {user_id}.")
             else:
-                print(f"Cache key not found for user {user_id}")
+                logger.info(f"Cache key not found for user {user_id}")
             return result
         except Exception as e:
-            print(f"Error invalidating cache for user {user_id}: {e}") # replace with logger
+            logger.error(f"Error invalidating cache for user {user_id}: {e}")
             return False
     
