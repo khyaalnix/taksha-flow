@@ -3,7 +3,7 @@ from app.services.oauth import OAuthService
 from app.services.google_oauth import GoogleAuthBuilder, GMAIL_SCOPES
 
 from app.utils.logger import LoggerFactory
-logger = LoggerFactory.get_logger()
+logger = LoggerFactory().get_logger()
 
 
 

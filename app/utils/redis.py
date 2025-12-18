@@ -6,7 +6,7 @@ from redis.asyncio import RedisError
 from app.connectors.connectors import get_redis_client
 from app.utils.logger import LoggerFactory
 
-logger = LoggerFactory.get_logger()
+logger = LoggerFactory().get_logger()
 
 class RedisCache:
     def __init__(self):

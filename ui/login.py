@@ -1,149 +1,148 @@
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta
+import httpx
+import os
 
-from app.client.oauth_client import get_login_url, handle_oauth_callback
+from dotenv import load_dotenv
 
+load_dotenv()
 
-from app.services.google_calendar_service import GoogleCalendarService
-from app.services.gmail_service import GmailService
-
-gmail_service = GmailService()
-google_calendar_service = GoogleCalendarService()
-
-
-def get_user_id_from_cookie():
-    """Get user_id from browser cookie."""
-    user_id = components.html(
-        """
-        <script>
-            function getCookie(name) {
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
-                if (parts.length === 2) return parts.pop().split(';').shift();
-                return null;
-            }
-            const userId = getCookie('taksha_flow_user_id');
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: userId}, '*');
-        </script>
-        """,
-        height=0,
-    )
-    return user_id
+API_BASE_URL = os.getenv("API_BASE_URL") + "/flow"
+AUTH_ENDPOINT = f"{API_BASE_URL}/auth"
 
 
-def save_user_id_to_cookie(user_id, days=30):
-    """Save user_id to browser cookie with expiration."""
-    components.html(
-        f"""
-        <script>
-            const expires = new Date();
-            expires.setTime(expires.getTime() + ({days} * 24 * 60 * 60 * 1000));
-            document.cookie = 'taksha_flow_user_id={user_id}; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
-        </script>
-        """,
-        height=0,
-    )
-
-
-def clear_user_id_from_cookie():
-    """Clear user_id from browser cookie."""
-    components.html(
-        """
-        <script>
-            document.cookie = 'taksha_flow_user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax';
-        </script>
-        """,
-        height=0,
-    )
-
+async def get_login_url():
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{AUTH_ENDPOINT}/login")
+            response.raise_for_status()
+            data = response.json()
+            return data.get("auth_url")
+        except httpx.HTTPError as e:
+            st.error(f"Error getting login URL: {str(e)}")
+            return None
 
 
 async def start_login():
+    login_url = await get_login_url()
 
-    login_url = get_login_url()
-    st.markdown(f"Click [here]({login_url}) to login with Google")
+    if login_url:
+        st.markdown(
+            f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="{login_url}" target="_self">
+                    <button style="
+                        padding: 12px 24px;
+                        background-color: #4285f4;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        font-size: 16px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    ">
+                        🔐 Sign in with Google
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
 async def complete_login():
+    # This function is no longer needed since backend handles redirect
+    # Just clear any OAuth code from URL if present
     query_params = st.query_params
-    code = query_params.get("code")
-
-    if code:
-        result = handle_oauth_callback(code)
-        user_id = result["user_info"]['id']
-
-        await gmail_service.cache_user_token(
-            user_id=user_id,
-            access_token=result["tokens"]["access_token"],
-            expires_in=result["tokens"]["expiry"],
-        )
-
-        await google_calendar_service.cache_user_token(
-            user_id=user_id,
-            access_token=result["tokens"]["access_token"],
-            expires_in=result["tokens"]["expiry"],
-        )
-
-        st.session_state["logged_in"] = True
-        st.session_state["user"] = result["user_info"]
-        st.session_state["user_id"] = user_id
-
-        # Save user_id to browser cookie for persistence (30 days)
-        save_user_id_to_cookie(user_id, days=30)
-
+    if "code" in query_params or "state" in query_params:
         st.query_params.clear()
-        st.rerun()  # Rerun to show logged-in state
 
 
 async def check_cached_session():
-    """Check if there's a valid cached token for the user."""
-    # First check session state, then fall back to cookie
-    user_id = st.session_state.get("user_id")
-
-    if not user_id:
-        # Try to get user_id from browser cookie
-        user_id = get_user_id_from_cookie()
-
-    if not user_id:
-        return False
-
-    # Check if token is still valid in cache
-    gmail_token_valid = await gmail_service.check_if_valid_token(user_id)
-    calendar_token_valid = await google_calendar_service.check_if_valid_token(user_id)
-
-    if gmail_token_valid and calendar_token_valid:
-        # Token is valid, restore session
-        st.session_state["logged_in"] = True
-        st.session_state["user_id"] = user_id
-        if not st.session_state.get("user"):
-            # We don't have user info in session, just store minimal info
-            st.session_state["user"] = {"id": user_id}
+    """Check if user has a valid session cookie by calling /check endpoint via browser"""
+    if st.session_state.get("logged_in"):
         return True
-    else:
-        # Token expired or invalid, clear cookie
-        if user_id:
-            clear_user_id_from_cookie()
+
+    # Use JavaScript to check authentication since cookies are in the browser
+    result = components.html(
+        f"""
+        <script>
+            fetch('{AUTH_ENDPOINT}/check', {{
+                method: 'GET',
+                credentials: 'include',  // Important: sends cookies with request
+                headers: {{
+                    'Accept': 'application/json',
+                }}
+            }})
+            .then(response => {{
+                if (response.ok) {{
+                    return response.json();
+                }} else {{
+                    throw new Error('Not authenticated');
+                }}
+            }})
+            .then(data => {{
+                if (data.authenticated && data.user) {{
+                    window.parent.postMessage({{
+                        type: 'streamlit:setComponentValue',
+                        value: {{authenticated: true, user: data.user}}
+                    }}, '*');
+                }} else {{
+                    window.parent.postMessage({{
+                        type: 'streamlit:setComponentValue',
+                        value: {{authenticated: false}}
+                    }}, '*');
+                }}
+            }})
+            .catch(error => {{
+                console.error('Auth check failed:', error);
+                window.parent.postMessage({{
+                    type: 'streamlit:setComponentValue',
+                    value: {{authenticated: false}}
+                }}, '*');
+            }});
+        </script>
+        """,
+        height=0,
+    )
+
+    if result and isinstance(result, dict) and result.get("authenticated"):
+        st.session_state["logged_in"] = True
+        st.session_state["user"] = result.get("user", {})
+        return True
 
     return False
 
 
 async def logout():
-    """Logout user and clear all session data."""
-    user_id = st.session_state.get("user_id")
+    components.html(
+        f"""
+        <script>
+            fetch('{AUTH_ENDPOINT}/logout', {{
+                method: 'POST',
+                credentials: 'include',
+                headers: {{
+                    'Accept': 'application/json',
+                }}
+            }})
+            .then(response => response.json())
+            .then(data => {{
+                window.parent.postMessage({{
+                    type: 'streamlit:setComponentValue',
+                    value: {{success: true}}
+                }}, '*');
+            }})
+            .catch(error => {{
+                console.error('Logout error:', error);
+            }});
+        </script>
+        """,
+        height=0,
+    )
 
-    # Invalidate cached tokens
-    if user_id:
-        await gmail_service.invalidate_cache(user_id)
-        await google_calendar_service.invalidate_cache(user_id)
-
-    # Clear session state
     st.session_state["logged_in"] = False
     st.session_state["user"] = None
-    st.session_state["user_id"] = None
-
-    # Clear browser cookie
-    clear_user_id_from_cookie()
 
     st.success("Logged out successfully!")
     st.rerun()
@@ -152,44 +151,65 @@ async def logout():
 async def render():
     st.title("Welcome 👋")
 
-    try:
-        if not st.session_state.get("logged_in"):
-            # Check if there's a valid cached token before prompting login
-            has_valid_token = await check_cached_session()
+    # Check for authentication on page load
+    if not st.session_state.get("logged_in"):
+        # Clear any leftover OAuth params
+        await complete_login()
 
-            if not has_valid_token:
-                st.write("Sign in to connect your calendar, mail, and news feed.")
-                await start_login()
-                await complete_login()
-            else:
-                # We have a valid cached token
-                user = st.session_state.get("user", {})
-                user_display = user.get("email") or user.get("id", "User")
-                st.success(f"Welcome back! Logged in as {user_display}")
+        # Check if user has valid cookie
+        has_valid_token = await check_cached_session()
 
-                # Add logout button
-                if st.button("Logout"):
-                    await logout()
+        if not has_valid_token:
+            # Show login page
+            st.write("Sign in to connect your calendar, mail, and news feed.")
+            await start_login()
         else:
-            user = st.session_state["user"]
-            user_display = user.get("email") or user.get("id", "User")
-            st.success(f"Logged in as {user_display}")
-
-            # Add logout button
-            if st.button("Logout"):
-                await logout()
-    finally:
-        # Close Redis connections before event loop closes
-        await cleanup_redis_connections()
+            # User is authenticated via cookie, show logged-in state
+            user = st.session_state.get("user", {})
+            render_logged_in_view(user)
+    else:
+        # User already logged in via session state
+        user = st.session_state["user"]
+        render_logged_in_view(user)
 
 
-async def cleanup_redis_connections():
-    """Close all Redis connections to prevent event loop errors."""
-    try:
-        if gmail_service.oauth_service.store._redis:
-            await gmail_service.oauth_service.store._redis.aclose()
-        if google_calendar_service.oauth_service.store._redis:
-            await google_calendar_service.oauth_service.store._redis.aclose()
-    except Exception as e:
-        print(f"Error closing Redis connections: {e}")
+def render_logged_in_view(user: dict):
+    """Render the view for logged-in users"""
+    user_email = user.get("email", "User")
+    user_name = user.get("name", user_email)
+    user_picture = user.get("picture")
 
+    # Create columns for user info and logout button
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        st.success(f"✅ Logged in as **{user_name}**")
+        if user_email != user_name:
+            st.caption(f"📧 {user_email}")
+
+    with col2:
+        import asyncio
+        if st.button("🚪 Logout", type="secondary"):
+            asyncio.run(logout())
+
+    # Show user profile card
+    if user_picture:
+        st.image(user_picture, width=100)
+
+    st.divider()
+
+    # Placeholder for main app content
+    st.subheader("🎯 Your Dashboard")
+    st.info("Connected services: Gmail, Google Calendar")
+
+    # Add tabs for different features
+    tab1, tab2, tab3 = st.tabs(["📧 Email", "📅 Calendar", "📰 News Feed"])
+
+    with tab1:
+        st.write("Email integration coming soon...")
+
+    with tab2:
+        st.write("Calendar integration coming soon...")
+
+    with tab3:
+        st.write("News feed coming soon...")

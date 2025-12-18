@@ -1,7 +1,7 @@
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 import requests
-import os 
+import os
 
 from configs.settings import (
     GOOGLE_CLIENT_ID,

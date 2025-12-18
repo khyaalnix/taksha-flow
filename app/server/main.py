@@ -11,7 +11,7 @@ from app import app_state
 from app.utils.logger import LoggerFactory
 from app.connectors.connectors import get_mongo_client, get_redis_client
 
-logger = LoggerFactory.get_logger()
+logger = LoggerFactory().get_logger()
 
 async def ratelimit_callback(
     request: Request, response: Response, pexpire: int
@@ -51,17 +51,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = os.getenv("WHITELISTED_ORIGINS", "http://localhost:8501").split(',')
+cors_origins = [origin.strip() for origin in cors_origins]
+if "*" in cors_origins:
+    cors_origins = ["http://localhost:8501"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("WHITELISTED_ORIGINS","*").split(','),
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["Set-Cookie"]
 )
 # Add GZip compression for responses > 500 bytes
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# include routers here... 
+# include routers here...
+from app.api.login import router as auth_router
+app.include_router(auth_router) 
 
 
 @app.get("/")

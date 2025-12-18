@@ -3,7 +3,7 @@ import asyncio
 
 from app.utils.redis import RedisCache, LockManager
 from app.utils.logger import LoggerFactory
-logger = LoggerFactory.get_logger()
+logger = LoggerFactory().get_logger()
 
 
 

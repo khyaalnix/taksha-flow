@@ -5,7 +5,7 @@ from google.auth.credentials import TokenState
 
 from app.services.oauth import OAuthService, AuthBuilder
 from app.utils.logger import LoggerFactory
-logger = LoggerFactory.get_logger()
+logger = LoggerFactory().get_logger()
 
 GMAIL_SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',

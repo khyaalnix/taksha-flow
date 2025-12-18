@@ -1,4 +1,9 @@
 venv*
 *env*
-*__pycache__/*
+__pycache__/*
 *.pyc
+*.log
+LOGIN_FLOW_DIAGRAM.md 
+OAUTH_SETUP.md
+*.pyc
+*/__pycache__/*

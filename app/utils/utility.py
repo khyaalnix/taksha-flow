@@ -1,5 +1,4 @@
-import y
-
+import threading
 class SingleTonClass(object):
     """Created a singleton class"""
     _lock = threading.Lock()
