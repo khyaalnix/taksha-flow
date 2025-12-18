@@ -1,6 +1,7 @@
 from datetime import timedelta
 from fastapi import APIRouter, Response, HTTPException, status, Depends
 from fastapi.responses import RedirectResponse
+from fastapi_limiter.depends import RateLimiter
 
 from app.client.oauth_client import get_login_url, handle_oauth_callback
 from app.core.security import (
@@ -24,9 +25,17 @@ from app.schemas.auth import (
 from app.services.gmail_service import GmailService
 from app.services.google_calendar_service import GoogleCalendarService
 from app.utils.logger import LoggerFactory
+from configs.settings import RATE_LIMITER_CONFIG
 
 logger = LoggerFactory().get_logger()
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+with open(RATE_LIMITER_CONFIG, "r") as f:
+    rate_limiter_config = json.load(f)
+
+router = APIRouter(
+            prefix="/auth", tags=["Authentication"], 
+            dependencies=[Depends(RateLimiter(**rate)) for rate in rate_limiter_config["auth"]]
+        )
 
 gmail_service = GmailService()
 google_calendar_service = GoogleCalendarService()

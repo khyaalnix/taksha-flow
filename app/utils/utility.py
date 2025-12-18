@@ -1,4 +1,6 @@
 import threading
+from motor.motor_asyncio import AsyncIOMotorCollection
+
 class SingleTonClass(object):
     """Created a singleton class"""
     _lock = threading.Lock()
@@ -12,3 +14,11 @@ class SingleTonClass(object):
                     cls._instance = super().__new__(cls)
         return cls._instance
 
+
+async def get_collection(client, db_name, collection) -> AsyncIOMotorCollection:
+    if client is None:
+        raise ValueError("Client is None")
+
+    db = client[db_name]
+    collection = db[collection]
+    return collection
