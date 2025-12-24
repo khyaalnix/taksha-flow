@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.parse.outputs.version }}
+      version_label: ${{ steps.parse.outputs.version_label }}
       is_beta: ${{ steps.parse.outputs.is_beta }}
       is_alpha: ${{ steps.parse.outputs.is_alpha }}
       is_rc: ${{ steps.parse.outputs.is_rc }}
@@ -61,6 +62,10 @@ jobs:
           # Extract version without 'backend-v' prefix
           VERSION="${TAG#backend-v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Create label-safe version (replace dots with dashes for GCP labels)
+          VERSION_LABEL="${VERSION//./-}"
+          echo "version_label=$VERSION_LABEL" >> $GITHUB_OUTPUT
 
           # Determine release type
           if [[ "$TAG" =~ \.beta\. ]]; then
@@ -118,19 +123,12 @@ jobs:
       - name: Build and tag Docker image
         run: |
           IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/taksha-ai/${{ env.SERVICE_NAME }}"
-          docker build -t "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" .
-          docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:latest"
 
-          # Tag with release type
-          if [[ "${{ needs.validate.outputs.is_production }}" == "true" ]]; then
-            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:production"
-          elif [[ "${{ needs.validate.outputs.is_beta }}" == "true" ]]; then
-            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:beta"
-          elif [[ "${{ needs.validate.outputs.is_alpha }}" == "true" ]]; then
-            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:alpha"
-          elif [[ "${{ needs.validate.outputs.is_rc }}" == "true" ]]; then
-            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:rc"
-          fi
+          # Build and tag with version
+          docker build -t "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" .
+
+          # Tag as latest (this will always be the most recent build)
+          docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:latest"
 
           echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
 
@@ -154,8 +152,9 @@ jobs:
 
           SERVICE="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
 
+          # Always deploy using the 'latest' tag
           gcloud run deploy "${SERVICE}" \
-            --image "${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.version }}" \
+            --image "${{ env.IMAGE_NAME }}:latest" \
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
@@ -167,7 +166,7 @@ jobs:
             --timeout 300 \
             --set-env-vars "VERSION=${{ needs.validate.outputs.version }}" \
             --set-env-vars "ENVIRONMENT=${{ needs.validate.outputs.is_production == 'true' && 'production' || 'staging' }}" \
-            --labels "version=${{ needs.validate.outputs.version }},managed-by=github-actions,release-type=${{ needs.validate.outputs.is_production == 'true' && 'production' || needs.validate.outputs.is_beta == 'true' && 'beta' || needs.validate.outputs.is_alpha == 'true' && 'alpha' || 'rc' }}"
+            --labels "version=${{ needs.validate.outputs.version_label }},managed-by=github-actions,release-type=${{ needs.validate.outputs.is_production == 'true' && 'production' || needs.validate.outputs.is_beta == 'true' && 'beta' || needs.validate.outputs.is_alpha == 'true' && 'alpha' || 'rc' }}"
 
           # Get service URL
           SERVICE_URL=$(gcloud run services describe "${SERVICE}" \
