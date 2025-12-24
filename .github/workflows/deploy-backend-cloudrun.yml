@@ -164,8 +164,7 @@ jobs:
             --min-instances 0 \
             --max-instances 1 \
             --timeout 300 \
-            --set-env-vars "VERSION=${{ needs.validate.outputs.version }}" \
-            --set-env-vars "ENVIRONMENT=${{ needs.validate.outputs.is_production == 'true' && 'production' || 'staging' }}" \
+            --set-env-vars "VERSION=${{ needs.validate.outputs.version }},ENVIRONMENT=${{ needs.validate.outputs.is_production == 'true' && 'production' || 'staging' }},REDIS_URL=${{ secrets.REDIS_URL }},MONGO_URL=${{ secrets.MONGO_URL }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }},GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }},WHITELISTED_ORIGINS=${{ secrets.WHITELISTED_ORIGINS }},JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }},API_BASE_URL=${{ secrets.API_BASE_URL }},FRONTEND_URL=${{ secrets.FRONTEND_URL }},COOKIE_SECURE=${{ secrets.COOKIE_SECURE }},COOKIE_SAMESITE=${{ secrets.COOKIE_SAMESITE }}" \
             --labels "version=${{ needs.validate.outputs.version_label }},managed-by=github-actions,release-type=${{ needs.validate.outputs.is_production == 'true' && 'production' || needs.validate.outputs.is_beta == 'true' && 'beta' || needs.validate.outputs.is_alpha == 'true' && 'alpha' || 'rc' }}"
 
           # Get service URL
