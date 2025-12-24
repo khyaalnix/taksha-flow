@@ -1,0 +1,302 @@
+name: Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*.beta.*'
+      - 'v*.*.*.alpha.*'
+      - 'v*.*.*.rc.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy (e.g., v1.0.0 or v1.0.0.beta.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-${{ github.ref_name }}"
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      is_beta: ${{ steps.parse.outputs.is_beta }}
+      is_alpha: ${{ steps.parse.outputs.is_alpha }}
+      is_rc: ${{ steps.parse.outputs.is_rc }}
+      is_production: ${{ steps.parse.outputs.is_production }}
+      tag_name: ${{ steps.parse.outputs.tag_name }}
+    steps:
+      - name: Get tag name
+        id: get_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate and parse tag
+        id: parse
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+
+          # Validate tag format
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.beta\.[0-9]+|\.alpha\.[0-9]+|\.rc\.[0-9]+)?$ ]]; then
+            echo "Invalid tag format: $TAG"
+            echo "Expected format: v*.*.* or v*.*.*.beta.* or v*.*.*.alpha.* or v*.*.*.rc.*"
+            exit 1
+          fi
+
+          # Extract version without 'v' prefix
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Determine release type
+          if [[ "$TAG" =~ \.beta\. ]]; then
+            echo "is_beta=true" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Beta"
+          elif [[ "$TAG" =~ \.alpha\. ]]; then
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=true" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Alpha"
+          elif [[ "$TAG" =~ \.rc\. ]]; then
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=true" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Release Candidate"
+          else
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=true" >> $GITHUB_OUTPUT
+            echo "Release type: Production"
+          fi
+
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Update package.json version
+        run: |
+          cd frontend
+          npm version ${{ needs.validate.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run linter
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Build frontend
+        env:
+          GITHUB_PAGES: 'true'
+          NODE_ENV: 'production'
+          NEXT_PUBLIC_VERSION: ${{ needs.validate.outputs.version }}
+          NEXT_PUBLIC_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Create version metadata
+        run: |
+          cd frontend/out
+          cat > version.json <<EOF
+          {
+            "version": "${{ needs.validate.outputs.version }}",
+            "tag": "${{ needs.validate.outputs.tag_name }}",
+            "commit": "${{ github.sha }}",
+            "buildTime": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "isProduction": ${{ needs.validate.outputs.is_production }},
+            "isBeta": ${{ needs.validate.outputs.is_beta }},
+            "isAlpha": ${{ needs.validate.outputs.is_alpha }},
+            "isRC": ${{ needs.validate.outputs.is_rc }},
+            "deployUrl": "https://khyaalnix.github.io/flow"
+          }
+          EOF
+          cat version.json
+
+      - name: Create deployment info
+        run: |
+          cd frontend/out
+          cat > DEPLOYMENT.txt <<EOF
+          Frontend Deployment Information
+          ================================
+          Version: ${{ needs.validate.outputs.version }}
+          Tag: ${{ needs.validate.outputs.tag_name }}
+          Commit: ${{ github.sha }}
+          Build Date: $(date -u)
+          Release Type: ${{ needs.validate.outputs.is_production == 'true' && 'Production' || needs.validate.outputs.is_beta == 'true' && 'Beta' || needs.validate.outputs.is_alpha == 'true' && 'Alpha' || 'Release Candidate' }}
+          Deploy URL: https://khyaalnix.github.io/flow
+          ================================
+          EOF
+          cat DEPLOYMENT.txt
+
+      - name: Add .nojekyll
+        run: touch frontend/out/.nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/out
+
+      - name: Upload build for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ needs.validate.outputs.tag_name }}
+          path: frontend/out
+          retention-days: 90
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Deployment Successful! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ needs.validate.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type:** ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || needs.validate.outputs.is_beta == 'true' && '🟡 Beta' || needs.validate.outputs.is_alpha == 'true' && '🟠 Alpha' || '🔵 RC' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed URL:** [https://khyaalnix.github.io/flow](https://khyaalnix.github.io/flow)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "_Build completed at $(date -u)_" >> $GITHUB_STEP_SUMMARY
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    if: needs.validate.outputs.is_production == 'true' || needs.validate.outputs.is_beta == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ needs.validate.outputs.tag_name }}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${{ needs.validate.outputs.tag_name }} \
+              --pretty=format:"- %s (%h)" \
+              --no-merges \
+              -- frontend/)
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ needs.validate.outputs.tag_name }}
+          path: ./build
+
+      - name: Create release archive
+        run: |
+          cd build
+          tar -czf ../frontend-${{ needs.validate.outputs.tag_name }}.tar.gz .
+          cd ..
+          sha256sum frontend-${{ needs.validate.outputs.tag_name }}.tar.gz > frontend-${{ needs.validate.outputs.tag_name }}.tar.gz.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: Frontend Release ${{ needs.validate.outputs.version }}
+          body: |
+            ## 🎉 Frontend Release ${{ needs.validate.outputs.version }}
+
+            ### 📦 Deployment Information
+            - **Live URL**: https://khyaalnix.github.io/flow
+            - **Version**: `${{ needs.validate.outputs.version }}`
+            - **Release Type**: ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || '🟡 Beta' }}
+            - **Commit**: `${{ github.sha }}`
+            - **Build Date**: ${{ github.event.head_commit.timestamp }}
+
+            ### 📝 Changes
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### 🔗 Useful Links
+            - [View Deployment](https://khyaalnix.github.io/flow)
+            - [Version Info](https://khyaalnix.github.io/flow/version.json)
+
+            ### 📋 Build Artifacts
+            - Frontend build archive (tar.gz)
+            - SHA256 checksum
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_beta == 'true' }}
+          files: |
+            frontend-${{ needs.validate.outputs.tag_name }}.tar.gz
+            frontend-${{ needs.validate.outputs.tag_name }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Post-Deployment Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, deploy, release]
+    if: always()
+    steps:
+      - name: Notify success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "✅ Frontend v${{ needs.validate.outputs.version }} deployed successfully!"
+          echo "🌐 URL: https://khyaalnix.github.io/flow"
+          echo "📦 Version: ${{ needs.validate.outputs.version }}"
+          echo "🏷️ Tag: ${{ needs.validate.outputs.tag_name }}"
+          echo "🎯 Type: ${{ needs.validate.outputs.is_production == 'true' && 'Production' || needs.validate.outputs.is_beta == 'true' && 'Beta' || needs.validate.outputs.is_alpha == 'true' && 'Alpha' || 'RC' }}"
+
+      - name: Notify failure
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment failed for tag ${{ needs.validate.outputs.tag_name }}"
+          echo "Please check the logs for more information."
+          exit 1

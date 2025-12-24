@@ -5,8 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:ghpages": "GITHUB_PAGES=true NODE_ENV=production next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:beta": "bash scripts/deploy.sh beta",
+    "deploy:alpha": "bash scripts/deploy.sh alpha",
+    "deploy:rc": "bash scripts/deploy.sh rc",
+    "deploy:prod": "bash scripts/deploy.sh prod"
   },
   "dependencies": {
     "next": "16.1.1",
