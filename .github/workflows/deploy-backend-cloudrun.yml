@@ -117,7 +117,7 @@ jobs:
 
       - name: Build and tag Docker image
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/taksha-flow/${{ env.SERVICE_NAME }}"
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/taksha-ai/${{ env.SERVICE_NAME }}"
           docker build -t "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" .
           docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:latest"
 
