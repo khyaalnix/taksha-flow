@@ -1,4 +1,4 @@
-from ui.login import render as render_login
+from ui.login import render as render
 import asyncio
 import streamlit as st
 import nest_asyncio
@@ -18,4 +18,4 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-loop.run_until_complete(render_login())
+loop.run_until_complete(render())

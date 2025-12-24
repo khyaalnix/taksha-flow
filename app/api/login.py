@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from fastapi import APIRouter, Response, HTTPException, status, Depends
 from fastapi.responses import RedirectResponse
@@ -100,8 +101,9 @@ async def oauth_callback(code: str):
             expires_delta=timedelta(days=JWT_EXPIRY_DAYS)
         )
 
-        # Create redirect response to frontend
-        redirect_response = RedirectResponse(url=FRONTEND_URL, status_code=302)
+        # Create redirect response to frontend with success parameter
+        redirect_url = f"{FRONTEND_URL}?auth=success"
+        redirect_response = RedirectResponse(url=redirect_url, status_code=302)
 
         # Set cookie on the redirect response
         redirect_response.set_cookie(

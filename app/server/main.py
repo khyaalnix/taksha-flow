@@ -51,14 +51,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_origins = os.getenv("WHITELISTED_ORIGINS", "http://localhost:8501").split(',')
-cors_origins = [origin.strip() for origin in cors_origins]
-if "*" in cors_origins:
-    cors_origins = ["http://localhost:8501"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=os.getenv("WHITELISTED_ORIGINS",["*"]),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

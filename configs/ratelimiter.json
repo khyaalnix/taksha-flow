@@ -1,13 +1,30 @@
 {
-    "auth": {
-        "login": [{"times": 5, "seconds": 60}]
-    },
-    "app":[
-        {"times": 60, "seconds": 60},
-        {"times": 200, "hours": 1},
-        {"times": 400, "hours": 24}
-
+    "auth": [
+        {
+            "times": 1000,
+            "seconds": 60
+        },
+        {
+            "times": 5000,
+            "minutes": 1
+        },
+        {
+            "times": 10000,
+            "hours": 1
+        }
+    ],
+    "app": [
+        {
+            "times": 500,
+            "seconds": 60
+        },
+        {
+            "times": 2000,
+            "hours": 1
+        },
+        {
+            "times": 5000,
+            "hours": 24
+        }
     ]
 }
-
-    

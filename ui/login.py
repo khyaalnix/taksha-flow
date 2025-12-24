@@ -52,9 +52,30 @@ async def start_login():
 
 
 async def complete_login():
-    # This function is no longer needed since backend handles redirect
-    # Just clear any OAuth code from URL if present
+    """Check if we just completed OAuth flow and verify authentication"""
     query_params = st.query_params
+
+    # Check if we have a 'login' success parameter from OAuth redirect
+    if "auth" in query_params and query_params["auth"] == "success":
+        # Clear the query param
+        st.query_params.clear()
+        # Try to verify the session
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    f"{AUTH_ENDPOINT}/check",
+                    cookies=st.context.cookies if hasattr(st.context, 'cookies') else None
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("authenticated"):
+                        st.session_state["logged_in"] = True
+                        st.session_state["user"] = data.get("user", {})
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Error verifying login: {str(e)}")
+
+    # Clear any leftover OAuth code from URL
     if "code" in query_params or "state" in query_params:
         st.query_params.clear()
 
@@ -68,6 +89,7 @@ async def check_cached_session():
     result = components.html(
         f"""
         <script>
+            console.log('Checking auth at: {AUTH_ENDPOINT}/check');
             fetch('{AUTH_ENDPOINT}/check', {{
                 method: 'GET',
                 credentials: 'include',  // Important: sends cookies with request
@@ -76,13 +98,15 @@ async def check_cached_session():
                 }}
             }})
             .then(response => {{
+                console.log('Auth check response status:', response.status);
                 if (response.ok) {{
                     return response.json();
                 }} else {{
-                    throw new Error('Not authenticated');
+                    throw new Error('Not authenticated: ' + response.status);
                 }}
             }})
             .then(data => {{
+                console.log('Auth check success:', data);
                 if (data.authenticated && data.user) {{
                     window.parent.postMessage({{
                         type: 'streamlit:setComponentValue',
@@ -107,12 +131,18 @@ async def check_cached_session():
         height=0,
     )
 
-    if result and isinstance(result, dict) and result.get("authenticated"):
-        st.session_state["logged_in"] = True
-        st.session_state["user"] = result.get("user", {})
-        return True
+    # Handle the result from JavaScript
+    if result and isinstance(result, dict):
+        if result.get("authenticated"):
+            st.session_state["logged_in"] = True
+            st.session_state["user"] = result.get("user", {})
+            # Trigger rerun to update the UI
+            st.rerun()
+        else:
+            st.session_state["logged_in"] = False
+            st.session_state["user"] = None
 
-    return False
+    return st.session_state.get("logged_in", False)
 
 
 async def logout():
