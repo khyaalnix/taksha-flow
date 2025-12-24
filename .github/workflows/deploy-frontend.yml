@@ -126,6 +126,7 @@ jobs:
           NODE_ENV: 'production'
           NEXT_PUBLIC_VERSION: ${{ needs.validate.outputs.version }}
           NEXT_PUBLIC_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://your-backend-api.com' }}
         run: |
           cd frontend
           npm run build
