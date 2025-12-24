@@ -108,7 +108,7 @@ jobs:
       - name: Update package.json version
         run: |
           cd frontend
-          npm version ${{ needs.validate.outputs.version }} --no-git-tag-version --allow-same-version
+          node -e "const pkg = require('./package.json'); pkg.version = '${{ needs.validate.outputs.version }}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
 
       - name: Install dependencies
         run: |

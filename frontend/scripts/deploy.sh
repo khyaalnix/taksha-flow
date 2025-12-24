@@ -38,21 +38,36 @@ case $RELEASE_TYPE in
     ;;
   "beta")
     # Find the latest beta number
-    LATEST_BETA=$(git tag -l "v$MAJOR.$MINOR.$PATCH.beta.*" | sort -V | tail -n1 | grep -oP '\.beta\.\K\d+' || echo "0")
+    LATEST_TAG=$(git tag -l "v$MAJOR.$MINOR.$PATCH.beta.*" | sort -V | tail -n1)
+    if [ -z "$LATEST_TAG" ]; then
+      LATEST_BETA=0
+    else
+      LATEST_BETA=$(echo "$LATEST_TAG" | sed 's/.*\.beta\.//')
+    fi
     NEXT_BETA=$((LATEST_BETA + 1))
     NEW_VERSION="$MAJOR.$MINOR.$PATCH.beta.$NEXT_BETA"
     TAG_PREFIX="v"
     ;;
   "alpha")
     # Find the latest alpha number
-    LATEST_ALPHA=$(git tag -l "v$MAJOR.$MINOR.$PATCH.alpha.*" | sort -V | tail -n1 | grep -oP '\.alpha\.\K\d+' || echo "0")
+    LATEST_TAG=$(git tag -l "v$MAJOR.$MINOR.$PATCH.alpha.*" | sort -V | tail -n1)
+    if [ -z "$LATEST_TAG" ]; then
+      LATEST_ALPHA=0
+    else
+      LATEST_ALPHA=$(echo "$LATEST_TAG" | sed 's/.*\.alpha\.//')
+    fi
     NEXT_ALPHA=$((LATEST_ALPHA + 1))
     NEW_VERSION="$MAJOR.$MINOR.$PATCH.alpha.$NEXT_ALPHA"
     TAG_PREFIX="v"
     ;;
   "rc")
     # Find the latest rc number
-    LATEST_RC=$(git tag -l "v$MAJOR.$MINOR.$PATCH.rc.*" | sort -V | tail -n1 | grep -oP '\.rc\.\K\d+' || echo "0")
+    LATEST_TAG=$(git tag -l "v$MAJOR.$MINOR.$PATCH.rc.*" | sort -V | tail -n1)
+    if [ -z "$LATEST_TAG" ]; then
+      LATEST_RC=0
+    else
+      LATEST_RC=$(echo "$LATEST_TAG" | sed 's/.*\.rc\.//')
+    fi
     NEXT_RC=$((LATEST_RC + 1))
     NEW_VERSION="$MAJOR.$MINOR.$PATCH.rc.$NEXT_RC"
     TAG_PREFIX="v"
