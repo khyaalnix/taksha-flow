@@ -51,9 +51,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Parse WHITELISTED_ORIGINS from comma-separated string to list
+whitelisted_origins = os.getenv("WHITELISTED_ORIGINS", "")
+origins_list = [origin.strip() for origin in whitelisted_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("WHITELISTED_ORIGINS",["*"]),
+    allow_origins=origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
