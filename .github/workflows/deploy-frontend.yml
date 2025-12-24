@@ -3,14 +3,14 @@ name: Deploy Frontend to GitHub Pages
 on:
   push:
     tags:
-      - 'v*.*.*'
-      - 'v*.*.*.beta.*'
-      - 'v*.*.*.alpha.*'
-      - 'v*.*.*.rc.*'
+      - "v*.*.*"
+      - "v*.*.*.beta.*"
+      - "v*.*.*.alpha.*"
+      - "v*.*.*.rc.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to deploy (e.g., v1.0.0 or v1.0.0.beta.1)'
+        description: "Tag to deploy (e.g., v1.0.0 or v1.0.0.beta.1)"
         required: true
         type: string
 
@@ -101,8 +101,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Update package.json version
@@ -128,8 +128,8 @@ jobs:
 
       - name: Build frontend
         env:
-          GITHUB_PAGES: 'true'
-          NODE_ENV: 'production'
+          GITHUB_PAGES: "true"
+          NODE_ENV: "production"
           NEXT_PUBLIC_VERSION: ${{ needs.validate.outputs.version }}
           NEXT_PUBLIC_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://your-backend-api.com' }}
@@ -150,7 +150,7 @@ jobs:
             "isBeta": ${{ needs.validate.outputs.is_beta }},
             "isAlpha": ${{ needs.validate.outputs.is_alpha }},
             "isRC": ${{ needs.validate.outputs.is_rc }},
-            "deployUrl": "https://khyaalnix.github.io/flow"
+            "deployUrl": "https://khyaalnix.github.io/taksha-flow"
           }
           EOF
           cat version.json
@@ -166,7 +166,7 @@ jobs:
           Commit: ${{ github.sha }}
           Build Date: $(date -u)
           Release Type: ${{ needs.validate.outputs.is_production == 'true' && 'Production' || needs.validate.outputs.is_beta == 'true' && 'Beta' || needs.validate.outputs.is_alpha == 'true' && 'Alpha' || 'Release Candidate' }}
-          Deploy URL: https://khyaalnix.github.io/flow
+          Deploy URL: https://khyaalnix.github.io/taksha-flow
           ================================
           EOF
           cat DEPLOYMENT.txt
@@ -205,7 +205,7 @@ jobs:
           echo "**Version:** ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** ${{ needs.validate.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Release Type:** ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || needs.validate.outputs.is_beta == 'true' && '🟡 Beta' || needs.validate.outputs.is_alpha == 'true' && '🟠 Alpha' || '🔵 RC' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployed URL:** [https://khyaalnix.github.io/flow](https://khyaalnix.github.io/flow)" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed URL:** [https://khyaalnix.github.io/taksha-flow](https://khyaalnix.github.io/taksha-flow)" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
@@ -262,7 +262,7 @@ jobs:
             ## 🎉 Frontend Release ${{ needs.validate.outputs.version }}
 
             ### 📦 Deployment Information
-            - **Live URL**: https://khyaalnix.github.io/flow
+            - **Live URL**: https://khyaalnix.github.io/taksha-flow
             - **Version**: `${{ needs.validate.outputs.version }}`
             - **Release Type**: ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || '🟡 Beta' }}
             - **Commit**: `${{ github.sha }}`
@@ -272,8 +272,8 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             ### 🔗 Useful Links
-            - [View Deployment](https://khyaalnix.github.io/flow)
-            - [Version Info](https://khyaalnix.github.io/flow/version.json)
+            - [View Deployment](https://khyaalnix.github.io/taksha-flow)
+            - [Version Info](https://khyaalnix.github.io/taksha-flow/version.json)
 
             ### 📋 Build Artifacts
             - Frontend build archive (tar.gz)
@@ -296,7 +296,7 @@ jobs:
         if: needs.deploy.result == 'success'
         run: |
           echo "✅ Frontend v${{ needs.validate.outputs.version }} deployed successfully!"
-          echo "🌐 URL: https://khyaalnix.github.io/flow"
+          echo "🌐 URL: https://khyaalnix.github.io/taksha-flow"
           echo "📦 Version: ${{ needs.validate.outputs.version }}"
           echo "🏷️ Tag: ${{ needs.validate.outputs.tag_name }}"
           echo "🎯 Type: ${{ needs.validate.outputs.is_production == 'true' && 'Production' || needs.validate.outputs.is_beta == 'true' && 'Beta' || needs.validate.outputs.is_alpha == 'true' && 'Alpha' || 'RC' }}"

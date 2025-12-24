@@ -4,8 +4,8 @@ const isGithubPages = process.env.GITHUB_PAGES === 'true';
 
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: isGithubPages ? '/flow' : '',
-  assetPrefix: isGithubPages ? '/flow/' : '',
+  basePath: isGithubPages ? '/taksha-flow' : '',
+  assetPrefix: isGithubPages ? '/taksha-flow/' : '',
   images: {
     unoptimized: true,
     remotePatterns: [

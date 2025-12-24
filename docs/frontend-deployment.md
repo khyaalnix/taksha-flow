@@ -4,7 +4,7 @@ This guide explains how to deploy the frontend application to GitHub Pages using
 
 ## Overview
 
-The frontend is automatically deployed to **https://khyaalnix.github.io/flow** when you push a version tag. The deployment uses GitHub Actions and supports multiple release types.
+The frontend is automatically deployed to **https://khyaalnix.github.io/taksha-flow** when you push a version tag. The deployment uses GitHub Actions and supports multiple release types.
 
 ## Supported Tag Formats
 
@@ -90,7 +90,7 @@ npm version major
    - Version metadata created
 3. **Deploy**:
    - Build artifacts uploaded to GitHub Pages
-   - Site deployed to https://khyaalnix.github.io/flow
+   - Site deployed to https://khyaalnix.github.io/taksha-flow
 4. **Release** (for production and beta):
    - GitHub Release created
    - Changelog generated
@@ -114,8 +114,8 @@ Visit: https://github.com/khyaalnix/taksha-flow/actions
 ### Check Deployed Version
 
 Once deployed, you can check the version info:
-- **Version JSON**: https://khyaalnix.github.io/flow/version.json
-- **Deployment Info**: https://khyaalnix.github.io/flow/DEPLOYMENT.txt
+- **Version JSON**: https://khyaalnix.github.io/taksha-flow/version.json
+- **Deployment Info**: https://khyaalnix.github.io/taksha-flow/DEPLOYMENT.txt
 
 Example version.json:
 ```json
@@ -128,7 +128,7 @@ Example version.json:
   "isBeta": true,
   "isAlpha": false,
   "isRC": false,
-  "deployUrl": "https://khyaalnix.github.io/flow"
+  "deployUrl": "https://khyaalnix.github.io/taksha-flow"
 }
 ```
 
@@ -290,7 +290,7 @@ Ensure the following settings in your GitHub repository:
 
 1. Go to **Settings** → **Pages**
 2. **Source**: GitHub Actions
-3. Your site will be published at: https://khyaalnix.github.io/flow
+3. Your site will be published at: https://khyaalnix.github.io/taksha-flow
 
 ## CI/CD Pipeline Summary
 
