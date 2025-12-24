@@ -1,0 +1,283 @@
+name: Deploy Backend to Google Cloud Run
+
+on:
+  push:
+    tags:
+      - "backend-v*.*.*"
+      - "backend-v*.*.*.beta.*"
+      - "backend-v*.*.*.alpha.*"
+      - "backend-v*.*.*.rc.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to deploy (e.g., backend-v1.0.0)"
+        required: true
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: taksha-flow-backend
+  REGISTRY: ${{ secrets.GCP_REGION || 'us-central1' }}-docker.pkg.dev
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      is_beta: ${{ steps.parse.outputs.is_beta }}
+      is_alpha: ${{ steps.parse.outputs.is_alpha }}
+      is_rc: ${{ steps.parse.outputs.is_rc }}
+      is_production: ${{ steps.parse.outputs.is_production }}
+      tag_name: ${{ steps.parse.outputs.tag_name }}
+    steps:
+      - name: Get tag name
+        id: get_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate and parse tag
+        id: parse
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+
+          # Validate tag format (must start with backend-)
+          if [[ ! "$TAG" =~ ^backend-v[0-9]+\.[0-9]+\.[0-9]+(\.beta\.[0-9]+|\.alpha\.[0-9]+|\.rc\.[0-9]+)?$ ]]; then
+            echo "Invalid tag format: $TAG"
+            echo "Expected format: backend-v*.*.* or backend-v*.*.*.beta.* etc."
+            exit 1
+          fi
+
+          # Extract version without 'backend-v' prefix
+          VERSION="${TAG#backend-v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Determine release type
+          if [[ "$TAG" =~ \.beta\. ]]; then
+            echo "is_beta=true" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Beta"
+          elif [[ "$TAG" =~ \.alpha\. ]]; then
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=true" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Alpha"
+          elif [[ "$TAG" =~ \.rc\. ]]; then
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=true" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+            echo "Release type: Release Candidate"
+          else
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+            echo "is_alpha=false" >> $GITHUB_OUTPUT
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "is_production=true" >> $GITHUB_OUTPUT
+            echo "Release type: Production"
+          fi
+
+  build-and-deploy:
+    name: Build and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: validate
+    environment:
+      name: ${{ needs.validate.outputs.is_production == 'true' && 'production' || 'staging' }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag_name }}
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Build and tag Docker image
+        run: |
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/taksha-flow/${{ env.SERVICE_NAME }}"
+          docker build -t "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" .
+          docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:latest"
+
+          # Tag with release type
+          if [[ "${{ needs.validate.outputs.is_production }}" == "true" ]]; then
+            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:production"
+          elif [[ "${{ needs.validate.outputs.is_beta }}" == "true" ]]; then
+            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:beta"
+          elif [[ "${{ needs.validate.outputs.is_alpha }}" == "true" ]]; then
+            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:alpha"
+          elif [[ "${{ needs.validate.outputs.is_rc }}" == "true" ]]; then
+            docker tag "${IMAGE_NAME}:${{ needs.validate.outputs.version }}" "${IMAGE_NAME}:rc"
+          fi
+
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push "${{ env.IMAGE_NAME }}" --all-tags
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          SERVICE_SUFFIX=""
+          if [[ "${{ needs.validate.outputs.is_production }}" != "true" ]]; then
+            if [[ "${{ needs.validate.outputs.is_beta }}" == "true" ]]; then
+              SERVICE_SUFFIX="-beta"
+            elif [[ "${{ needs.validate.outputs.is_alpha }}" == "true" ]]; then
+              SERVICE_SUFFIX="-alpha"
+            elif [[ "${{ needs.validate.outputs.is_rc }}" == "true" ]]; then
+              SERVICE_SUFFIX="-rc"
+            fi
+          fi
+
+          SERVICE="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
+
+          gcloud run deploy "${SERVICE}" \
+            --image "${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.version }}" \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 1 \
+            --timeout 300 \
+            --set-env-vars "VERSION=${{ needs.validate.outputs.version }}" \
+            --set-env-vars "ENVIRONMENT=${{ needs.validate.outputs.is_production == 'true' && 'production' || 'staging' }}" \
+            --labels "version=${{ needs.validate.outputs.version }},managed-by=github-actions,release-type=${{ needs.validate.outputs.is_production == 'true' && 'production' || needs.validate.outputs.is_beta == 'true' && 'beta' || needs.validate.outputs.is_alpha == 'true' && 'alpha' || 'rc' }}"
+
+          # Get service URL
+          SERVICE_URL=$(gcloud run services describe "${SERVICE}" \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+
+          echo "url=${SERVICE_URL}" >> $GITHUB_OUTPUT
+          echo "service_name=${SERVICE}" >> $GITHUB_OUTPUT
+          echo "Service deployed at: ${SERVICE_URL}"
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -f "${{ steps.deploy.outputs.url }}/health" || exit 1
+
+      - name: Create deployment summary
+        run: |
+          echo "### ✅ Deployment Successful! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ steps.deploy.outputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ needs.validate.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type:** ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || needs.validate.outputs.is_beta == 'true' && '🟡 Beta' || needs.validate.outputs.is_alpha == 'true' && '🟠 Alpha' || '🔵 RC' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** [${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "_Deployed at $(date -u)_" >> $GITHUB_STEP_SUMMARY
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build-and-deploy]
+    if: needs.validate.outputs.is_production == 'true' || needs.validate.outputs.is_beta == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ needs.validate.outputs.tag_name }}^ 2>/dev/null | grep "^backend-" || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${{ needs.validate.outputs.tag_name }} \
+              --pretty=format:"- %s (%h)" \
+              --no-merges \
+              -- app/ configs/ requirements.txt)
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: Backend Release ${{ needs.validate.outputs.version }}
+          body: |
+            ## 🚀 Backend Release ${{ needs.validate.outputs.version }}
+
+            ### 📦 Deployment Information
+            - **Service URL**: ${{ needs.build-and-deploy.outputs.url }}
+            - **Version**: `${{ needs.validate.outputs.version }}`
+            - **Release Type**: ${{ needs.validate.outputs.is_production == 'true' && '🟢 Production' || '🟡 Beta' }}
+            - **Region**: ${{ env.REGION }}
+            - **Commit**: `${{ github.sha }}`
+
+            ### 📝 Changes
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### 🐳 Docker Image
+            ```
+            ${{ needs.build-and-deploy.outputs.image_name }}:${{ needs.validate.outputs.version }}
+            ```
+
+            ### 🔗 Useful Links
+            - [Service URL](${{ needs.build-and-deploy.outputs.url }})
+            - [Cloud Run Console](https://console.cloud.google.com/run?project=${{ env.PROJECT_ID }})
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_beta == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Post-Deployment Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, build-and-deploy]
+    if: always()
+    steps:
+      - name: Notify success
+        if: needs.build-and-deploy.result == 'success'
+        run: |
+          echo "✅ Backend v${{ needs.validate.outputs.version }} deployed successfully!"
+          echo "🌐 URL: ${{ needs.build-and-deploy.outputs.url }}"
+          echo "📦 Version: ${{ needs.validate.outputs.version }}"
+          echo "🏷️ Tag: ${{ needs.validate.outputs.tag_name }}"
+          echo "🎯 Type: ${{ needs.validate.outputs.is_production == 'true' && 'Production' || needs.validate.outputs.is_beta == 'true' && 'Beta' || needs.validate.outputs.is_alpha == 'true' && 'Alpha' || 'RC' }}"
+
+      - name: Notify failure
+        if: needs.build-and-deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment failed for tag ${{ needs.validate.outputs.tag_name }}"
+          echo "Please check the logs for more information."
+          exit 1
