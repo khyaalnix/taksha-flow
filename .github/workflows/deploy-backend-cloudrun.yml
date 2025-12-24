@@ -152,6 +152,9 @@ jobs:
 
           SERVICE="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
 
+          # Escape WHITELISTED_ORIGINS by wrapping in quotes to preserve commas
+          WHITELISTED_ORIGINS_ESCAPED="^:^${{ secrets.WHITELISTED_ORIGINS }}"
+
           # Always deploy using the 'latest' tag
           gcloud run deploy "${SERVICE}" \
             --image "${{ env.IMAGE_NAME }}:latest" \
@@ -171,7 +174,7 @@ jobs:
             --update-env-vars "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" \
             --update-env-vars "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
             --update-env-vars "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}" \
-            --update-env-vars "WHITELISTED_ORIGINS=${{ secrets.WHITELISTED_ORIGINS }}" \
+            --update-env-vars "WHITELISTED_ORIGINS=${WHITELISTED_ORIGINS_ESCAPED}" \
             --update-env-vars "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" \
             --update-env-vars "API_BASE_URL=${{ secrets.API_BASE_URL }}" \
             --update-env-vars "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" \
