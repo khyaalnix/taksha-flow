@@ -52,12 +52,15 @@ app = FastAPI(
 )
 
 # Parse WHITELISTED_ORIGINS from comma-separated string to list
-whitelisted_origins = os.getenv("WHITELISTED_ORIGINS", "")
-origins_list = [origin.strip() for origin in whitelisted_origins.split(",") if origin.strip()]
+temp_origins = ["https://khyaalnix.github.io","http://localhost:3000","https://taksha-flow-backend-beta-pgwcwgfvta-el.a.run.app","https://khyaalnix.github.io/taksha-flow"]
+
+# uncomment the below later
+# whitelisted_origins = os.getenv("WHITELISTED_ORIGINS", "")
+# origins_list = [origin.strip() for origin in whitelisted_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins_list,
+    allow_origins=temp_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
