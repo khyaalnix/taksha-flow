@@ -153,7 +153,7 @@ jobs:
           SERVICE="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
 
           # Escape WHITELISTED_ORIGINS by wrapping in quotes to preserve commas
-          WHITELISTED_ORIGINS_ESCAPED="^:^${{ secrets.WHITELISTED_ORIGINS }}"
+          WHITELISTED_ORIGINS_ESCAPED="^##^${{ secrets.WHITELISTED_ORIGINS }}"
 
           # Always deploy using the 'latest' tag
           gcloud run deploy "${SERVICE}" \
