@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-from fastapi import Cookie, HTTPException, status
+from fastapi import Cookie, HTTPException, status, Request
 from jose import jwt, JWTError, ExpiredSignatureError
 
 from app.utils.logger import LoggerFactory
@@ -67,9 +67,9 @@ def decode_token(token: str) -> Dict[str, Any]:
         )
 
 
-def get_current_user(token: Optional[str] = Cookie(None, alias=COOKIE_NAME)) -> Dict[str, Any]:
+def get_current_user(request: Request) -> Dict[str, Any]:
+    token = request.cookies.get(COOKIE_NAME)
     if not token:
-        logger.warning("Request without authentication token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated. Please login.",
