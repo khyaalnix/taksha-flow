@@ -6,7 +6,7 @@ export function HeroSection() {
     <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-28 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
         <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6">
-          It's all <span className="italic font-serif font-light text-zinc-600 dark:text-zinc-400">you</span>
+          It&apos;s all <span className="italic font-serif font-light text-zinc-600 dark:text-zinc-400">you</span>
         </h1>
         <p className="text-lg md:text-xl text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto mb-10">
           Content that exists because you do. Your personalized audio briefing that learns, adapts, and grows with you every morning.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import type { User } from '@/types/auth';
 
 interface UserAvatarProps {
@@ -26,12 +27,15 @@ export function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
 
   if (user.picture && !imageError) {
     return (
-      <img
+      <Image
         src={user.picture}
         alt={user.name || user.email}
+        width={size === 'sm' ? 32 : size === 'md' ? 48 : 64}
+        height={size === 'sm' ? 32 : size === 'md' ? 48 : 64}
         className={`${sizeClasses[size]} rounded-full object-cover border border-gray-200`}
         onError={() => setImageError(true)}
         referrerPolicy="no-referrer"
+        unoptimized
       />
     );
   }

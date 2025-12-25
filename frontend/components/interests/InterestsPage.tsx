@@ -84,7 +84,7 @@ export function InterestsPage() {
         const response = await fetch('/flow/interests/user');
         if (response.ok) {
           const data = await response.json();
-          const existingIds = data.data?.map((item: any) => item.interest_id) || [];
+          const existingIds = data.data?.map((item: { interest_id: string }) => item.interest_id) || [];
           setSelectedInterests(existingIds);
         }
       } catch (error) {
@@ -159,7 +159,7 @@ export function InterestsPage() {
             What interests you?
           </h1>
           <p className="text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
-            Select topics you'd like to hear about in your daily briefing. We'll curate content based on your interests.
+            Select topics you&apos;d like to hear about in your daily briefing. We&apos;ll curate content based on your interests.
           </p>
         </div>
 

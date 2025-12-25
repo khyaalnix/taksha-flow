@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { LoginButton } from './LoginButton';
 import { useState } from 'react';
 
@@ -23,12 +24,12 @@ export function LoginPage() {
 
       {/* Navigation */}
       <nav className="w-full px-6 py-6 flex justify-between items-center relative z-10 max-w-7xl mx-auto">
-        <a href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center gap-2 group">
           <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center transition-transform group-hover:scale-105">
             <span className="material-symbols-outlined text-xl">auto_awesome</span>
           </div>
           <span className="font-bold text-xl tracking-tight text-zinc-900 dark:text-white">Flow</span>
-        </a>
+        </Link>
         <div className="flex items-center gap-4">
           <span className="text-sm text-zinc-500 dark:text-zinc-400 hidden sm:block">New to Flow?</span>
           <a href="#" className="text-sm font-semibold text-zinc-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors">
