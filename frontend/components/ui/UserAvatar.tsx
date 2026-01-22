@@ -32,7 +32,7 @@ export function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
         alt={user.name || user.email}
         width={size === 'sm' ? 32 : size === 'md' ? 48 : 64}
         height={size === 'sm' ? 32 : size === 'md' ? 48 : 64}
-        className={`${sizeClasses[size]} rounded-full object-cover border border-gray-200`}
+        className={`${sizeClasses[size]} rounded-full object-cover border border-zinc-200 dark:border-zinc-700`}
         onError={() => setImageError(true)}
         referrerPolicy="no-referrer"
         unoptimized

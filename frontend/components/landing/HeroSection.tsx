@@ -14,7 +14,7 @@ export function HeroSection() {
 
         <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
           <Link
-            href="/login"
+            href="/setup"
             className="bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black px-8 py-3.5 rounded-full text-base font-semibold flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-xl"
           >
             <span className="material-symbols-outlined text-lg">mic</span>

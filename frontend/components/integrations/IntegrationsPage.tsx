@@ -7,6 +7,8 @@ import { BackgroundGradients } from '../shared/BackgroundGradients';
 import { Footer } from '../shared/Footer';
 import { IntegrationCard } from './IntegrationCard';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
 interface Integration {
   id: string;
   icon: string;
@@ -30,7 +32,7 @@ const integrationDefinitions: Omit<Integration, 'status'>[] = [
     description: 'We scan for newsletters, flight confirmations, and urgent updates to summarize specifically for your morning audio brief.',
     statusText: 'Secure Read-Only Access',
     statusColor: 'bg-green-500',
-    checkEndpoint: '/flow/check/gmail',
+    checkEndpoint: '/check/gmail',
   },
   {
     id: 'calendar',
@@ -41,7 +43,7 @@ const integrationDefinitions: Omit<Integration, 'status'>[] = [
     description: "Sync your meetings to get a rundown of your day. We'll remind you of prep time and identify scheduling conflicts.",
     statusText: 'Events Synced',
     statusColor: 'bg-green-500',
-    checkEndpoint: '/flow/check/calendar',
+    checkEndpoint: '/check/calendar',
   },
   {
     id: 'location',
@@ -52,7 +54,7 @@ const integrationDefinitions: Omit<Integration, 'status'>[] = [
     description: 'Provide hyper-local weather updates and traffic estimates for your commute based on your current whereabouts.',
     statusText: 'Approximate Only',
     statusColor: 'bg-yellow-500',
-    checkEndpoint: '/flow/check/location',
+    checkEndpoint: '/check/location',
   },
 ];
 
@@ -73,7 +75,9 @@ export function IntegrationsPage() {
           }
 
           try {
-            const response = await fetch(integration.checkEndpoint);
+            const response = await fetch(`${API_URL}${integration.checkEndpoint}`, {
+              credentials: 'include',
+            });
             const isConnected = response.status === 200;
             return {
               ...integration,

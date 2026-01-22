@@ -13,7 +13,7 @@ export function CTASection() {
           Start your day with a briefing that knows you, adapts to you, and grows with you. Join thousands of users today.
         </p>
         <Link
-          href="/login"
+          href="/setup"
           className="inline-block bg-white text-primary dark:text-orange-900 px-10 py-4 rounded-full font-bold text-base hover:shadow-2xl hover:bg-zinc-50 transition-all transform hover:-translate-y-1"
         >
           Start listening

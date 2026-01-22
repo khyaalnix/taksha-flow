@@ -6,6 +6,8 @@ import { Navigation } from '../shared/Navigation';
 import { BackgroundGradients } from '../shared/BackgroundGradients';
 import { Footer } from '../shared/Footer';
 import { InterestCard } from './InterestCard';
+import { apiClient } from '@/lib/api/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Interest {
   id: string;
@@ -73,29 +75,43 @@ const availableInterests: Interest[] = [
 
 export function InterestsPage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch existing interests on mount
+  // Fetch existing interests on mount (only if authenticated)
+  // Redirect to home if user already has 5+ interests
   useEffect(() => {
     const fetchInterests = async () => {
+      if (!isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch('/flow/interests/user');
-        if (response.ok) {
-          const data = await response.json();
-          const existingIds = data.data?.map((item: { interest_id: string }) => item.interest_id) || [];
-          setSelectedInterests(existingIds);
+        const data = await apiClient.get<{ data: { interest_id: string }[] }>('/interests/user');
+        const existingIds = data.data?.map((item) => item.interest_id) || [];
+
+        // If user already has 5+ interests, redirect to main screen
+        if (existingIds.length >= 5) {
+          router.replace('/');
+          return;
         }
+
+        setSelectedInterests(existingIds);
       } catch (error) {
+        // Silently handle errors - user may not have any interests yet
         console.error('Error fetching interests:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchInterests();
-  }, []);
+    if (!authLoading) {
+      fetchInterests();
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   const handleToggle = (id: string) => {
     setSelectedInterests(prev =>
@@ -111,22 +127,11 @@ export function InterestsPage() {
 
     setSaving(true);
     try {
-      const response = await fetch('/flow/interests/onboarding', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          interest_ids: selectedInterests,
-        }),
+      await apiClient.post('/interests/onboarding', {
+        interest_ids: selectedInterests,
       });
-
-      if (response.ok) {
-        // Navigate to home or dashboard
-        router.push('/');
-      } else {
-        alert('Failed to save interests. Please try again.');
-      }
+      // Navigate to home or dashboard
+      router.push('/');
     } catch (error) {
       console.error('Error saving interests:', error);
       alert('Failed to save interests. Please try again.');
@@ -139,10 +144,10 @@ export function InterestsPage() {
     router.push('/');
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="bg-zinc-50 dark:bg-[#050505] min-h-screen flex items-center justify-center">
-        <div className="text-zinc-600 dark:text-zinc-400">Loading interests...</div>
+        <div className="text-zinc-600 dark:text-zinc-400">Loading...</div>
       </div>
     );
   }

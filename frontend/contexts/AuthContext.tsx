@@ -1,8 +1,10 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { authApi } from '@/lib/api/auth';
 import type { User } from '@/types/auth';
+
+const AUTH_POLL_INTERVAL = 30000; // 30 seconds
 
 interface AuthContextValue {
   user: User | null;
@@ -19,8 +21,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const checkingRef = useRef(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     if (checkingRef.current) return;
     checkingRef.current = true;
 
@@ -35,8 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
     } finally {
       setIsLoading(false);
+      checkingRef.current = false;
     }
-  };
+  }, []);
 
   const login = async () => {
     try {
@@ -58,9 +62,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Initial auth check
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
+
+  // Poll for auth status every 30 seconds
+  useEffect(() => {
+    pollIntervalRef.current = setInterval(() => {
+      checkAuth();
+    }, AUTH_POLL_INTERVAL);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [checkAuth]);
 
   const value: AuthContextValue = {
     user,
