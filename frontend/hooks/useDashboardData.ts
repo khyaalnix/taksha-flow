@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { dashboardApi } from '@/lib/api/dashboard';
 import {
   summarizeCalendarEvents,
@@ -11,7 +11,7 @@ import {
 } from '@/lib/ai/gemini';
 import type { DashboardBrief, PriorityItem } from '@/types/dashboard';
 
-export interface DashboardState {
+interface DashboardBaseState {
   // From backend (pre-fetched news)
   greeting: string;
   date: string;
@@ -24,10 +24,6 @@ export interface DashboardState {
   calendarItems: SummarizedCalendarEvent[];
   emailItem: SummarizedEmail | null;
 
-  // Combined priority items
-  priorityItems: PriorityItem[];
-  urgentCount: number;
-
   // Loading states
   isLoading: boolean;
   isLoadingCalendar: boolean;
@@ -38,7 +34,7 @@ export interface DashboardState {
   error: string | null;
 }
 
-const initialState: DashboardState = {
+const initialState: DashboardBaseState = {
   greeting: 'Good Morning',
   date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
   suggestion: '"Hey Flow, what\'s on my agenda today?"',
@@ -47,8 +43,6 @@ const initialState: DashboardState = {
   contentItems: [],
   calendarItems: [],
   emailItem: null,
-  priorityItems: [],
-  urgentCount: 0,
   isLoading: true,
   isLoadingCalendar: true,
   isLoadingEmail: true,
@@ -57,7 +51,43 @@ const initialState: DashboardState = {
 };
 
 export function useDashboardData() {
-  const [state, setState] = useState<DashboardState>(initialState);
+  const [state, setState] = useState<DashboardBaseState>(initialState);
+  const hasFetched = useRef(false);
+
+  // Derive priority items from state using useMemo (not useEffect + setState)
+  const priorityItems = useMemo<PriorityItem[]>(() => {
+    const items: PriorityItem[] = [];
+
+    // Add calendar events first (most urgent)
+    state.calendarItems.forEach((event) => {
+      items.push({
+        id: event.id,
+        type: 'event',
+        title: event.title,
+        subtitle: event.subtitle,
+      });
+    });
+
+    // Add email summary
+    if (state.emailItem) {
+      items.push({
+        id: state.emailItem.id,
+        type: 'email',
+        title: state.emailItem.title,
+        subtitle: state.emailItem.subtitle,
+      });
+    }
+
+    // Add news item
+    if (state.newsItem) {
+      items.push(state.newsItem);
+    }
+
+    return items.slice(0, 5);
+  }, [state.calendarItems, state.emailItem, state.newsItem]);
+
+  // Derive urgent count from calendar items
+  const urgentCount = useMemo(() => state.calendarItems.length, [state.calendarItems]);
 
   // Fetch base dashboard data (news, deepcast, content - pre-cached on backend)
   const fetchBaseDashboard = useCallback(async () => {
@@ -163,50 +193,15 @@ export function useDashboardData() {
     }
   }, []);
 
-  // Combine all priority items when data changes
+  // Initial fetch - use ref to prevent double fetching
   useEffect(() => {
-    const priorityItems: PriorityItem[] = [];
+    if (hasFetched.current) return;
+    hasFetched.current = true;
 
-    // Add calendar events first (most urgent)
-    state.calendarItems.forEach((event) => {
-      priorityItems.push({
-        id: event.id,
-        type: 'event',
-        title: event.title,
-        subtitle: event.subtitle,
-      });
-    });
-
-    // Add email summary
-    if (state.emailItem) {
-      priorityItems.push({
-        id: state.emailItem.id,
-        type: 'email',
-        title: state.emailItem.title,
-        subtitle: state.emailItem.subtitle,
-      });
-    }
-
-    // Add news item
-    if (state.newsItem) {
-      priorityItems.push(state.newsItem);
-    }
-
-    setState((prev) => ({
-      ...prev,
-      priorityItems: priorityItems.slice(0, 5),
-      urgentCount: state.calendarItems.length,
-    }));
-  }, [state.calendarItems, state.emailItem, state.newsItem]);
-
-  // Initial fetch
-  useEffect(() => {
     // Fetch all data in parallel
-    Promise.all([
-      fetchBaseDashboard(),
-      fetchAndSummarizeCalendar(),
-      fetchAndSummarizeEmail(),
-    ]);
+    void fetchBaseDashboard();
+    void fetchAndSummarizeCalendar();
+    void fetchAndSummarizeEmail();
   }, [fetchBaseDashboard, fetchAndSummarizeCalendar, fetchAndSummarizeEmail]);
 
   // Refresh function
@@ -219,15 +214,15 @@ export function useDashboardData() {
       error: null,
     }));
 
-    Promise.all([
-      fetchBaseDashboard(),
-      fetchAndSummarizeCalendar(),
-      fetchAndSummarizeEmail(),
-    ]);
+    void fetchBaseDashboard();
+    void fetchAndSummarizeCalendar();
+    void fetchAndSummarizeEmail();
   }, [fetchBaseDashboard, fetchAndSummarizeCalendar, fetchAndSummarizeEmail]);
 
   return {
     ...state,
+    priorityItems,
+    urgentCount,
     refresh,
     isFullyLoaded: !state.isLoading && !state.isLoadingCalendar && !state.isLoadingEmail,
   };
