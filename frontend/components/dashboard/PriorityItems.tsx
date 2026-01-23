@@ -5,9 +5,10 @@ import { PriorityItem, PriorityItemData } from './PriorityItem';
 interface PriorityItemsProps {
   items: PriorityItemData[];
   urgentCount?: number;
+  onItemClick?: (item: PriorityItemData) => void;
 }
 
-export function PriorityItems({ items, urgentCount = 0 }: PriorityItemsProps) {
+export function PriorityItems({ items, urgentCount = 0, onItemClick }: PriorityItemsProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between px-1">
@@ -22,7 +23,11 @@ export function PriorityItems({ items, urgentCount = 0 }: PriorityItemsProps) {
       </div>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <PriorityItem key={item.id} item={item} />
+          <PriorityItem
+            key={item.id}
+            item={item}
+            onClick={onItemClick ? () => onItemClick(item) : undefined}
+          />
         ))}
       </div>
     </div>

@@ -23,8 +23,7 @@ from app.schemas.auth import (
     LogoutResponse,
     UserInfo
 )
-from app.services.gmail_service import GmailService
-from app.services.google_calendar_service import GoogleCalendarService
+from app.services.google.google_service import google_service
 from app.utils.logger import LoggerFactory
 from configs.settings import RATE_LIMITER_CONFIG
 
@@ -34,12 +33,9 @@ with open(RATE_LIMITER_CONFIG, "r") as f:
     rate_limiter_config = json.load(f)
 
 router = APIRouter(
-            prefix="/auth", tags=["Authentication"], 
+            prefix="/auth", tags=["Authentication"],
             dependencies=[Depends(RateLimiter(**rate)) for rate in rate_limiter_config["auth"]]
         )
-
-gmail_service = GmailService()
-google_calendar_service = GoogleCalendarService()
 
 
 @router.get("/login", response_model=LoginResponse)
@@ -70,24 +66,18 @@ async def oauth_callback(code: str):
     try:
         result = handle_oauth_callback(code)
         user_info = result["user_info"]
-        tokens = result["tokens"]
+        credentials_json = result["credentials_json"]
         user_id = user_info['id']
 
         logger.info(f"OAuth callback successful for user: {user_info.get('email')}")
 
-        await gmail_service.cache_user_token(
+        # Cache full credentials JSON for Google services (Gmail + Calendar)
+        await google_service.cache_full_credentials(
             user_id=user_id,
-            access_token=tokens["access_token"],
-            expires_in=tokens["expiry"],
+            credentials_json=credentials_json,
         )
 
-        await google_calendar_service.cache_user_token(
-            user_id=user_id,
-            access_token=tokens["access_token"],
-            expires_in=tokens["expiry"],
-        )
-
-        logger.info(f"Cached OAuth tokens for user: {user_id}")
+        logger.info(f"Cached OAuth credentials for user: {user_id}")
 
         jwt_data = {
             "sub": user_id,
@@ -138,10 +128,9 @@ async def logout(response: Response, current_user: dict = Depends(get_current_us
     try:
         user_id = current_user["user_id"]
 
-        await gmail_service.invalidate_cache(user_id)
-        await google_calendar_service.invalidate_cache(user_id)
+        await google_service.invalidate_cache(user_id)
 
-        logger.info(f"Invalidated cached tokens for user: {user_id}")
+        logger.info(f"Invalidated cached credentials for user: {user_id}")
 
         response.delete_cookie(
             key=COOKIE_NAME,

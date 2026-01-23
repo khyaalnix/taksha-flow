@@ -39,19 +39,20 @@ export const dashboardApi = {
     return apiClient.get(`/dashboard/email/summary?max_emails=${maxEmails}`);
   },
 
-  async checkCalendarConnection(): Promise<{ connected: boolean; message: string }> {
+  async checkGoogleConnection(): Promise<{ connected: boolean; message: string }> {
     try {
-      return await apiClient.get('/dashboard/check/calendar');
+      return await apiClient.get('/dashboard/check/google');
     } catch {
-      return { connected: false, message: 'Calendar not connected' };
+      return { connected: false, message: 'Google services not connected' };
     }
   },
 
+  // Backward compatible aliases
+  async checkCalendarConnection(): Promise<{ connected: boolean; message: string }> {
+    return this.checkGoogleConnection();
+  },
+
   async checkGmailConnection(): Promise<{ connected: boolean; message: string }> {
-    try {
-      return await apiClient.get('/dashboard/check/gmail');
-    } catch {
-      return { connected: false, message: 'Gmail not connected' };
-    }
+    return this.checkGoogleConnection();
   },
 };

@@ -72,9 +72,15 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 # include routers here...
 from app.api.login import router as auth_router
 from app.api.interests import router as interests_router
+from app.api.permissions.location import router as location_router
+from app.api.dashboard import router as dashboard_router
+from app.api.news import router as news_router
 
-app.include_router(auth_router) 
+app.include_router(auth_router)
 app.include_router(interests_router)
+app.include_router(location_router)
+app.include_router(dashboard_router)
+app.include_router(news_router)
 
 @app.get("/")
 async def root():

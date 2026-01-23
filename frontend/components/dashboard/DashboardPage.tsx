@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Navigation } from '../shared/Navigation';
 import { DailyBriefHeader } from './DailyBriefHeader';
 import { PriorityItems } from './PriorityItems';
@@ -10,28 +10,15 @@ import { DeepcastCard, DeepcastData } from './DeepcastCard';
 import { ContentCard, ContentCardData } from './ContentCard';
 import { PriorityItemData } from './PriorityItem';
 import { WaveFooter } from './WaveFooter';
-import { dashboardApi } from '@/lib/api/dashboard';
-import type { DashboardBrief } from '@/types/dashboard';
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 // Fallback mock data for when API fails or during loading
 const fallbackPriorityItems: PriorityItemData[] = [
   {
     id: '1',
     type: 'event',
-    title: 'Design Review',
-    subtitle: '10:00 AM with Product Team',
-  },
-  {
-    id: '2',
-    type: 'email',
-    title: '8 New Emails',
-    subtitle: 'Top: Contract revision from Sarah',
-  },
-  {
-    id: '3',
-    type: 'news',
-    title: 'Tech Daily',
-    subtitle: 'Apple announces new spatial devices.',
+    title: 'Loading...',
+    subtitle: 'Fetching your schedule',
   },
 ];
 
@@ -63,64 +50,94 @@ const fallbackContentItems: ContentCardData[] = [
 
 export function DashboardPage() {
   const [isPlaying, setIsPlaying] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState<DashboardBrief | null>(null);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const data = await dashboardApi.getBrief({
-          include_calendar: true,
-          include_email: true,
-          include_news: true,
-          max_priority_items: 5,
-        });
-        setDashboardData(data);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        // Keep using fallback data on error
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
+  const {
+    priorityItems,
+    urgentCount,
+    suggestion,
+    deepcast,
+    contentItems,
+    isLoading,
+    isLoadingCalendar,
+    isLoadingEmail,
+    isSummarizing,
+    isFullyLoaded,
+  } = useDashboardData();
 
   const handleListeningTap = () => {
     setIsPlaying(!isPlaying);
   };
 
-  // Transform API data to component format
-  const priorityItems: PriorityItemData[] = dashboardData?.priority_items?.map((item) => ({
+  // Transform priority items to component format
+  const displayPriorityItems: PriorityItemData[] = priorityItems.map((item) => ({
     id: item.id,
     type: item.type as PriorityItemData['type'],
     title: item.title,
     subtitle: item.subtitle,
-  })) || fallbackPriorityItems;
+  }));
 
-  const urgentCount = dashboardData?.urgent_count ?? 3;
+  // Show loading indicator in priority items
+  const priorityItemsWithLoading: PriorityItemData[] = [...displayPriorityItems];
 
-  const suggestion = dashboardData?.suggestion || '"Hey Flow, draft a reply to Sarah about the contract."';
+  // Add loading indicators if still fetching
+  if (isLoadingCalendar && !priorityItems.some((p) => p.type === 'event')) {
+    priorityItemsWithLoading.unshift({
+      id: 'loading-calendar',
+      type: 'event',
+      title: isSummarizing ? 'Summarizing...' : 'Loading calendar...',
+      subtitle: 'Fetching your events',
+    });
+  } else if (!isLoadingCalendar && !priorityItems.some((p) => p.type === 'event')) {
+    // No calendar events - show "No events" message
+    priorityItemsWithLoading.unshift({
+      id: 'no-events',
+      type: 'event',
+      title: 'No Events Today',
+      subtitle: 'Your calendar is clear',
+    });
+  }
 
-  const deepcast: DeepcastData = dashboardData?.deepcast
+  if (isLoadingEmail && !priorityItems.some((p) => p.type === 'email')) {
+    priorityItemsWithLoading.push({
+      id: 'loading-email',
+      type: 'email',
+      title: isSummarizing ? 'Summarizing...' : 'Loading emails...',
+      subtitle: 'Checking your inbox',
+    });
+  }
+
+  // Handle priority item clicks
+  const handlePriorityItemClick = (item: PriorityItemData) => {
+    if (item.type === 'email') {
+      window.open('https://mail.google.com', '_blank');
+    } else if (item.type === 'event') {
+      window.open('https://calendar.google.com', '_blank');
+    }
+  };
+
+  // Transform deepcast data
+  const displayDeepcast: DeepcastData = deepcast
     ? {
-        id: dashboardData.deepcast.id,
-        title: dashboardData.deepcast.title,
-        excerpt: dashboardData.deepcast.excerpt,
-        imageUrl: dashboardData.deepcast.image_url || fallbackDeepcast.imageUrl,
-        duration: dashboardData.deepcast.duration,
-        progress: dashboardData.deepcast.progress,
+        id: deepcast.id,
+        title: deepcast.title,
+        excerpt: deepcast.excerpt,
+        imageUrl: deepcast.image_url || fallbackDeepcast.imageUrl,
+        duration: deepcast.duration,
+        progress: deepcast.progress,
       }
     : fallbackDeepcast;
 
-  const contentItems: ContentCardData[] = dashboardData?.content_items?.map((item) => ({
-    id: item.id,
-    title: item.title,
-    description: item.description,
-    imageUrl: item.image_url,
-    bookmarked: item.bookmarked,
-  })) || fallbackContentItems;
+  // Transform content items
+  const displayContentItems: ContentCardData[] =
+    contentItems.length > 0
+      ? contentItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          imageUrl: item.image_url,
+          bookmarked: item.bookmarked,
+        }))
+      : fallbackContentItems;
 
   return (
     <div className="bg-white dark:bg-[#0a0a0a] min-h-screen transition-colors duration-300 relative overflow-hidden">
@@ -136,7 +153,11 @@ export function DashboardPage() {
           {/* Left sidebar */}
           <aside className="w-full lg:w-72 flex-shrink-0 flex flex-col gap-6 order-2 lg:order-1">
             <DailyBriefHeader />
-            <PriorityItems items={priorityItems} urgentCount={urgentCount} />
+            <PriorityItems
+              items={priorityItemsWithLoading.slice(0, 5)}
+              urgentCount={urgentCount}
+              onItemClick={handlePriorityItemClick}
+            />
             <div className="mt-auto hidden lg:block">
               <SuggestionCard suggestion={suggestion} />
             </div>
@@ -153,12 +174,15 @@ export function DashboardPage() {
               <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
                 Visual Context
               </h3>
+              {isLoading && (
+                <span className="text-xs text-zinc-400 animate-pulse">Loading...</span>
+              )}
             </div>
 
-            <DeepcastCard data={deepcast} />
+            <DeepcastCard data={displayDeepcast} />
 
             <div className="space-y-3">
-              {contentItems.map((item) => (
+              {displayContentItems.map((item) => (
                 <ContentCard key={item.id} data={item} />
               ))}
             </div>

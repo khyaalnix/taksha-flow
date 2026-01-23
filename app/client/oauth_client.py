@@ -95,8 +95,12 @@ def handle_oauth_callback(code: str):
     return {
         "tokens": {
             "access_token": creds.token,
+            "refresh_token": creds.refresh_token,
             "expiry": expiry_timestamp,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
         },
+        "credentials_json": creds.to_json(),  # Full credentials for caching
         "user_info": user_info,
     }
 

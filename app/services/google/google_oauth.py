@@ -23,9 +23,19 @@ CALENDAR_SCOPES = [
 
 class GoogleAuthBuilder(AuthBuilder):
 
-    def build_creds_from_token(self,token_json: str, scopes: list[str]):
+    def build_creds_from_token(self, token_data, scopes: list[str]):
+        """Build credentials from token data (can be dict or JSON string)."""
         try:
-            creds = Credentials.from_authorized_user_info(eval(token_json), scopes=scopes)
+            import json
+            # Handle both dict (from Redis cache) and string (JSON) inputs
+            if isinstance(token_data, dict):
+                info = token_data
+            elif isinstance(token_data, str):
+                info = json.loads(token_data)
+            else:
+                raise ValueError(f"Unexpected token_data type: {type(token_data)}")
+
+            creds = Credentials.from_authorized_user_info(info, scopes=scopes)
             return creds
         except Exception as e:
             logger.error(f"Error building credentials from token JSON: {e}")

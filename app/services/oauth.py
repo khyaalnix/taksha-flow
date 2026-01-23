@@ -215,4 +215,23 @@ class OAuthService:
         except Exception as e:
             logger.error(f"Error invalidating cache for user {user_id}: {e}")
             return False
+
+    async def cache_full_credentials(self, user_id: str, credentials_json: str):
+        """
+        Cache full credentials JSON including refresh_token, client_id, client_secret.
+        This should be called after OAuth callback to store the complete credentials.
+        """
+        try:
+            # Build credentials to validate and get TTL
+            creds = self.auth_builder.build_creds_from_token(credentials_json, self.scopes)
+            if not self.auth_builder.is_valid(creds):
+                raise ValueError("Invalid credentials")
+
+            ttl = self.auth_builder.ttl(creds, self.refresh_buffer_seconds)
+            await self.store.set(self._token_key(user_id), credentials_json, ttl)
+            logger.info(f"Full credentials cached for user {user_id} with TTL: {ttl} seconds")
+            return True, None
+        except Exception as e:
+            logger.error(f"Error caching full credentials for user {user_id}: {e}")
+            return False, str(e)
     

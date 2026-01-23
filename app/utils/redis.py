@@ -85,7 +85,7 @@ class LockManager:
             )
             return token if ok else None
         except Exception:
-            logger.error("Lock Acquisition issue in LockManager for key: ", self.prefix)
+            logger.error(f"Lock Acquisition issue in LockManager for key: {self.prefix}")
             return None
 
     async def release(self, token: str) -> bool:
@@ -100,9 +100,9 @@ class LockManager:
         end
         """
         try:
-            await self.redis.eval(lua, 1, f"{self.lock_prefix}", token)
+            await self.redis.eval(lua, 1, f"{self.prefix}", token)
             return True
         except Exception:
-            logger.error("Lock Release issue in LockManager for key", self.prefix)
+            logger.error(f"Lock Release issue in LockManager for key: {self.prefix}")
             return False
 
